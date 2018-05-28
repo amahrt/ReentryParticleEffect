@@ -1,15 +1,15 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace ReentryParticleEffect
+namespace ReentryParticle
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class ReentryParticleEffect : MonoBehaviour
     {
-        public Vector3 velocity;
+        public Vector3 Velocity;
         public int MaxParticles = 3000;
         public int MaxEmissionRate = 400;
         // Minimum reentry strength that the effects will activate at.
@@ -24,20 +24,33 @@ namespace ReentryParticleEffect
 
         public class ReentryEffect
         {
-            public ReentryEffect(ParticleSystem trail, ParticleSystem sparks)
+            public ReentryEffect(GameObject effect)
             {
-                Trail = trail;
-                Sparks = sparks;
+                ParticleSystem[] particleSystems = effect.GetComponentsInChildren<ParticleSystem>();
+                Trail = particleSystems[0];
+                Trail.startSize = (float) 3.5;
+                Trail.startSpeed = (float) 3.5;
+                Sparks = particleSystems[1]; 
+                FXPrefab[] prefabs = effect.GetComponentsInChildren<FXPrefab>();
+                trailPrefab = prefabs[0];
             }
+            public FXPrefab trailPrefab;
             public ParticleSystem Trail;
             public ParticleSystem Sparks;
+
+            public void Die ()
+            {
+                Destroy (trailPrefab);
+                Destroy (Trail);
+                Destroy (Sparks);
+            }
         }
 
         public ReentryEffect GetEffect()
         {
             GameObject effect = (GameObject)GameObject.Instantiate(Resources.Load("Effects/fx_reentryTrail"));
-            ParticleSystem[] particleSystems = effect.GetComponentsInChildren<ParticleSystem>();
-            ReentryEffect reentryFx = new ReentryEffect(particleSystems[0], particleSystems[1]);
+            ReentryEffect reentryFx = new ReentryEffect(effect);
+            
             reentryFx.Trail.playbackSpeed = 5;
             reentryFx.Sparks.playbackSpeed = 5;
             return reentryFx;
@@ -70,8 +83,7 @@ namespace ReentryParticleEffect
                 {
                     if (effects != null)
                     {
-                        Destroy(effects.Sparks);
-                        Destroy(effects.Trail);
+                        effects.Die ();
                     }
                     effects = null;
                     continue;
@@ -87,21 +99,23 @@ namespace ReentryParticleEffect
                     if (effectStrength > 0)
                     {
                         // Ensure the particles don't lag a frame behind.
+                        effects.Trail.scalingMode = ParticleSystemScalingMode.Local;
                         effects.Trail.transform.position = vessel.CoM + vessel.rb_velocity * Time.fixedDeltaTime;
+                        effects.Trail.transform.localScale = new Vector3((float).15, (float).15, (float).15); 
                         effects.Trail.enableEmission = true;
                         effects.Sparks.transform.position = vessel.CoM + vessel.rb_velocity * Time.fixedDeltaTime;
                         effects.Sparks.enableEmission = true;
 
-                        velocity = AeroFX.velocity * (float)AeroFX.airSpeed;
+                        Velocity = AeroFX.velocity * (float)AeroFX.airSpeed;
 
-                        effects.Trail.startSpeed = velocity.magnitude;
-                        effects.Trail.transform.forward = -velocity.normalized;
+                        effects.Trail.startSpeed = Velocity.magnitude;
+                        effects.Trail.transform.forward = -Velocity.normalized;
                         effects.Trail.maxParticles = (int)(MaxParticles * effectStrength);
                         effects.Trail.emissionRate = (int)(MaxEmissionRate * effectStrength);
 
                         // startSpeed controls the emission cone angle. Greater than ~1 is too wide.
                         //reentryTrailSparks.startSpeed = velocity.magnitude;
-                        effects.Sparks.transform.forward = -velocity.normalized;
+                        effects.Sparks.transform.forward = -Velocity.normalized;
                         effects.Sparks.maxParticles = (int)(MaxParticles * effectStrength);
                         effects.Sparks.emissionRate = (int)(MaxEmissionRate * effectStrength);
                     }
@@ -126,8 +140,7 @@ namespace ReentryParticleEffect
                 ReentryEffect effects = VesselDict[vessel.id];
                 if (effects != null)
                 {
-                    Destroy(effects.Trail);
-                    Destroy(effects.Sparks);
+                    effects.Die ();
                 }
                 VesselDict.Remove(vessel.id);
             }
